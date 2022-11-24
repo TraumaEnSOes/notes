@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/webix/webix.min.css"/>
+        <title></title>
+    </head>
+    <body>
+        <script src="/nicEdit.js"></script>
+        <script src="/webix/webix.min.js"></script>
+        <script src="/webix_nicedit.js"></script>
+        <script>
+class Storer {
+    constructor( ) {
+        this._tree = [ ];
+        this._index = { };
+    }
+
+    parse( data, noDeepCopy ) {
+        this._tree = noDeepCopy ? data : JSON.parse( JSON.stringify( data ) );
+
+        const self = this;
+        this._tree.forEach( indexChilds );
+
+        function indexChilds( item ) {
+            self._index[item[0]] = item;
+            const childs = item[2];
+            if( Array.isArray( childs ) ) {
+                childs.forEach( indexChilds );
+            }
+        }
+    }
+
+    isPage( id ) {
+        const result = !Array.isArray( this._index[id][2] );
+        return result;
+    }
+    isNode( id ) {
+        const result = Array.isArray( this._index[id][2] );
+        return result;
+    }
+
+    getTitle( id ) {
+        return this._index[id][1];
+    }
+    setTitle( id, title ) {
+        if( title != this._index[id][1] ) {
+            this._index[id][1] = title;
+            return true;
+        }
+
+        return false;
+    }
+
+    getText( id ) {
+        return this._index[id][2];
+    }
+    setText( id, text ) {
+        if( text != this._index[id][2] ) {
+            this._index[id][2] = text;
+            return true;
+        }
+
+        return false;
+    }
+
+    raw( noDeepCopy ) {
+        return noDeepCopy ? this._tree : JSON.parse( JSON.stringify( this._tree ) );
+    }
+}
+
+class Application {
+    constructor( guiConfig ) {
+        this._storer = new Storer( );
+        this._selectedId = false;
+        this._editor = guiConfig.editor;
+        this._tree = guiConfig.tree;
+        this._menu = guiConfig.menu;
+        this._toolbar = guiConfig.toolbar;
+
+        this._menu.attachTo( this._tree );
+
+        this._tree.attachEvent( 'onDataUpdate', ( id, data, old ) => {
+            this._nodeChanged( id, data, old );
+        } );
+        this._tree.attachEvent( 'onAfterSelect', ( id ) => {
+            this._itemSelected( id );
+        } );
+        this._tree.attachEvent( 'onItemClick', ( id ) => {
+            this._tree.select( id );
+        } );
+
+        webix.ajax( ).post( '/rest/loadall' ) .then( function( response ) {
+            return response.json();
+        } ).then( ( tree ) => {
+            this._storer.parse( tree, true );
+            const treeData = Application._generateTreeData( this._storer._tree );
+            this._tree.parse( treeData );
+        } )
+    }
+
+    static _generateTreeData( tree ) {
+        const result = [ ];
+
+        tree.forEach( function( item ) {
+            const newItem = [ ];
+
+            translate( item, newItem );
+            result.push( newItem );
+        } );
+
+        function translate( origin, destination ) {
+            destination.id = origin[0];
+            destination.value = origin[1];
+            const childs = origin[2];
+            if( Array.isArray( childs ) ) {
+                destination.data = [ ];
+
+                childs.forEach( function( e ) {
+                    const newChild = [ ];
+                    translate( e, newChild );
+                    destination.data.push( newChild );
+                } );
+            }
+        }
+
+        return result;
+    }
+
+    _initGui( ) {
+    }
+
+    _itemSelected( id ) {
+        const item = this._tree.getItem( id );
+
+        if( this._storer.isPage( id ) ) {
+            if( this._selectedId === false ) {
+                // First time.
+                this._selectedId = id;
+            } else if( id !== this._selectedId ) {
+                this._storer.setText( this._selectedId, this._editor.getValue( ) );
+                this._selectedId = id;
+            }
+
+            const text = this._storer.getText( id );
+            this._editor.setValue( text || 'Empty page' );
+        }
+    }
+
+    _nodeChanged( id, data, old ) {
+
+    }
+}
+
+webix.ready( function( ) {
+    const ToolbarConfig = {
+        view: 'toolbar',
+        id: 'TOOLBAR',
+        rows: [
+            { view: 'button', type: 'icon', icon: 'mdi mdi-email', label: 'Mail', width: 80 }
+        ]
+    };
+    const TreeConfig = {
+        view: 'edittree',
+        id: 'TREE',
+        editable: false,
+        editor: 'text',
+        editValue: 'value',
+        minWidth: 100,
+        maxWidth: 800,
+        onContext: { }
+    };
+    const EditorConfig = {
+        view: "nic-editor",
+        id: 'TEXTEDITOR',
+        cdn: false,
+        fullPanel: false
+    };
+    const MenuConfig = {
+        view: 'contextmenu',
+        data: [
+            'Add Child',
+            'Add Brother',
+            'Delete',
+            'Rename'
+        ]
+    };
+
+    webix.protoUI( {
+        name: 'edittree'
+    }, webix.EditAbility, webix.ui.grouplist );
+
+    webix.ui( {
+        id: 'MAIN',
+        cols: [
+            ToolbarConfig,
+            TreeConfig,
+            { id: 'RESIZER', view: 'resizer' },
+            EditorConfig
+        ]
+    } );
+
+    window.app = new Application( {
+        menu: webix.ui( MenuConfig ),
+        editor: webix.$$( EditorConfig.id ),
+        tree: webix.$$( TreeConfig.id ),
+        toolbar: webix.$$( ToolbarConfig.id )
+    } );
+} );
+        </script>
+    </body>
+</html>
