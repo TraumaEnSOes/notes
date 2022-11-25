@@ -16,6 +16,8 @@ var Config = {
     autoOpenLastFile: true,
     lastFile: false
 };
+var InitMessages = [ ];
+
 var Data = [ ];
 
 function AutoSave( ) {
@@ -55,10 +57,18 @@ function indexChilds( index, item ) {
 }
 
 async function loadJSONFile( fileName ) {
-    const data = await FS.readFile( fileName, { encoding: 'utf-8' } ).then( function( data ) {
-        return JSON.parse( data. );
-    } )
+    return new Promise( function( resolve, fail ) {
+        FS.readFile( fileName, { encoding: 'utf-8' } ).then( function( data ) {
+            resolve( JSON.parse( data ) );
+        } ).catch( function( error ) {
+            fail( error );
+        } );
+    } );
 }
+
+loadJSONFile( 'config2.json' ).then( function( data ) {
+    Config = data;
+} );
 
 // Init.
 ( function( app ) {
@@ -78,9 +88,9 @@ async function loadJSONFile( fileName ) {
         }
     }
 
-    app.set( 'tree', tree )
-    tree.forEach( function( item ) { indexChilds( index, item ); } );
-    app.set( 'index', index );
+    // app.set( 'tree', tree )
+    // tree.forEach( function( item ) { indexChilds( index, item ); } );
+    // app.set( 'index', index );
 } )( App );
 
 App.post( '/rest/loadall', function( req, res ) {
@@ -90,8 +100,8 @@ App.post( '/rest/loadall', function( req, res ) {
 App.use( '/webix', Express.static( Path.join( MODULES_PATH, 'webix' ) ) );
 App.use( Express.static( STATIC_PATH ) );
 
-// App.listen( 0, '127.0.0.1', 15, function( ) {
-App.listen( 8000, '127.0.0.1', 15, function( ) {
+// App.listen( 0, '127.0.0.1', function( ) {
+App.listen( 8000, '127.0.0.1', function( ) {
     const browser = ParseArgs( );
     const port = this.address( ).port;
     const url = `http://127.0.0.1:${port}/`;
